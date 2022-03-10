@@ -1,13 +1,10 @@
-from re import A
-from types import NoneType
+
 import streamlit as st
-import logging
-#import controller  as c
 import hashlib
-import os
 import redis 
 import pandas as pd
 
+NoneType = type(None)
 # Configure connection to Redis
 r = redis.Redis(
     host='127.0.0.1',
@@ -23,11 +20,17 @@ def shortener(url):
     return str(hash_object.hexdigest())[:5]+DOMAIN
 
 def add_public(url):
+    """
+    Generate public short url for url
+    """
     short= shortener('public:'+url)
     r.set('public'+':'+short,url)
     return short
 
 def add_private(url,user):
+    """
+    Generate private short url for url and user.
+    """
     short= shortener(user+':'+url)
     r.set(user+':'+short,url)
     r.sadd(user+":private", short)
@@ -112,12 +115,16 @@ def intersec_users(u,v):
     """
     Gets the intersection of the wishlists of users u and v
     """
-    wishlist_inter = r.sinter(u+":wishlist",v+":wishlist")
-    inter =  list(map(lambda x: x.decode('ascii'), wishlist_inter))
-    if len(inter) == 0:
-        #st.warning("empty inter")
+    wishlist_u = get_wishlist(u)
+    if type(wishlist_u) == NoneType:
         return None
-    inter = pd.DataFrame(inter,columns= ["short"])
+    wishlist_v = get_wishlist(v)
+    if type(wishlist_v) == NoneType:
+        return None
+    # Use pandas to join both dataframes
+    inter = wishlist_u.merge(wishlist_v,on = "full")
+    inter.columns = [f"{u}'s private link","Full url",f"{v}'s private link"]
+    
     return inter
 
 def login(user, password):
@@ -148,6 +155,7 @@ if 'user' not in st.session_state:
 
 header = st.title("Proyecto 1 REDIS")
 
+# Expand url form
 expand_form = st.form("Deshorten URL")
 expand_form.title("Deshorten URL")
 url_to_expand = expand_form.text_input("URL")  
@@ -207,7 +215,7 @@ else:
     else:
         header = st.title(f"Bienvenido {st.session_state['user']}")
     with st.expander("Generate new short URLs"):
-        # public
+        # public link generation form
         public_form =st.form("Shorten public url")
         public_form.title("Shorten public url")
         public_url = public_form.text_input("url")
@@ -217,7 +225,7 @@ else:
             public_short =add_public(public_url)
             st.success("Created new public shortened url: "+public_short)
 
-        # private
+        # private link generation form
         private_form =st.form("Shorten private url")
         private_form.title("Shorten private url")
         private_url = private_form.text_input("url")
@@ -240,7 +248,7 @@ else:
         if new_cat_button:
             add_cat(current_user,new_cat)
             st.success("Created new category")
-            #st.experimental_rerun()
+            st.experimental_rerun()
         
         cat_selector = st.radio("Select category to display",['All']+get_cats(current_user))
         cat_display_button = st.button("See category" )
