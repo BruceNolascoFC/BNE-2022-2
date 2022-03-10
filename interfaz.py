@@ -1,4 +1,5 @@
 from re import A
+from types import NoneType
 import streamlit as st
 import logging
 #import controller  as c
@@ -7,13 +8,16 @@ import os
 import redis 
 import pandas as pd
 
+# Configure connection to Redis
 r = redis.Redis(
     host='127.0.0.1',
     port= '6379', 
     password='')
 
+# Domain of shortened urls
 DOMAIN = '.url.unam'
 
+# Gets the short url version
 def shortener(url):
     hash_object = hashlib.md5(url.encode())
     return str(hash_object.hexdigest())[:5]+DOMAIN
@@ -26,9 +30,14 @@ def add_public(url):
 def add_private(url,user):
     short= shortener(user+':'+url)
     r.set(user+':'+short,url)
+    r.sadd(user+":private", short)
     return short
 
 def expand(short,user = None,verbose = False):
+    """
+    Returns the full version of the short url short.
+    Gives priority to private links.
+    """
     #st.success(user)
     if user== None:
         user= st.session_state['user']
@@ -53,28 +62,77 @@ def get_wishlist(user):
     wishlist_raw = list(r.smembers(user+":wishlist"))
     
     if len(wishlist_raw) == 0:
-        return ""
-    print(wishlist_raw)
-    #st.write(wishlist_raw)
-    #st.write([type(x) for x in wishlist_raw])
-    #wishlist_raw = wishlist_raw.decode()
-    #wishlist = pd.DataFrame(wishlist_raw.split('\n')[:-1],columns= ["short"])
+        return None
     wishlist_raw = map(lambda x: x.decode('ascii'), wishlist_raw)
     wishlist = pd.DataFrame(wishlist_raw,columns= ["short"])
     wishlist['full'] = wishlist.short.map(lambda x: expand(x,user))
     return wishlist
 
+def add_cat(user,category):
+    r.sadd(user+':cats',category)
+
+def add_url_to_cat(user,category,url):
+    """
+    Add the shortened version of url to the category cat.
+    """
+    short = add_private(url,user)
+    if category not in get_cats(user):
+        add_cat(user,category)
+    r.sadd(f'{user}:{category}',short)
+    return short
+
+
+def get_cats(user):
+    """
+    Get all the categories registered by user.
+    """
+    cats_raw = list(r.smembers(user+":cats"))
+    if len(cats_raw) == 0:
+        return []
+    cats_raw = map(lambda x: x.decode('ascii'), cats_raw)
+    return list(cats_raw)
+
+def get_links_in_cat(user, cat):
+    """
+    Get all the links stored under the category cat by user.
+    """
+    if cat == "All":
+        cat = 'private'
+    raw_links = r.smembers(f'{user}:{cat}')
+    links = list(map(lambda x: x.decode('ascii'), raw_links))
+    if len(links) == 0:
+        return None
+    links = pd.DataFrame(links,columns= ["short"])
+    
+    links['full'] = links.short.map(lambda x: expand(x,user))
+    return links
+    
+
 def intersec_users(u,v):
-    wishlist1 = r.get(u+":wishlist")
-    wishlist2 = r.get(v+":wishlist")
-    pass
+    """
+    Gets the intersection of the wishlists of users u and v
+    """
+    wishlist_inter = r.sinter(u+":wishlist",v+":wishlist")
+    inter =  list(map(lambda x: x.decode('ascii'), wishlist_inter))
+    if len(inter) == 0:
+        #st.warning("empty inter")
+        return None
+    inter = pd.DataFrame(inter,columns= ["short"])
+    return inter
 
 def login(user, password):
+    """
+    Login with user and password.
+    """
     if r.exists("user:"+user) == 0:
+        st.warning("User already registeres")
         return False
     return r.get("user:"+user).decode('ascii') == password
 
 def signup(user, password):
+    """
+    Creates new user.
+    """
     if r.exists("user:"+user) == 1:
         return False
     r.set("user:"+user, password)
@@ -83,8 +141,6 @@ def signup(user, password):
 def logout():
     st.session_state['user'] = None
     st.experimental_rerun()
-# Callbacks de interfaz
-
 
 # Interfaz
 if 'user' not in st.session_state:
@@ -117,7 +173,7 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
     #st.warning(str(r.get("user:"+user)))
     if login_button:
         st.session_state['user'] = user if login(user, password) else "auth_error"
-        
+        st.experimental_rerun()
     
     signup_form = st.form("SIGNUP")
     signup_form.title("SIGN UP")
@@ -127,49 +183,87 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
 
     if signup_button:
         st.session_state['user'] = new_user if signup(new_user, new_password) else "auth_error"
+        st.experimental_rerun()
 
-
-elif st.session_state['user'] == "root":
-    header = st.title(f"Bienvenido Administrador")
-
-
-
-    st.button('Logout', on_click = logout)
 else:
     current_user = st.session_state['user']
-    header = st.title(f"Bienvenido {st.session_state['user']}")
+    if st.session_state['user'] == "root":
+        header = st.title(f"Bienvenido Administrador")
 
-    # public
-    public_form =st.form("Shorten public url")
-    public_form.title("Shorten public url")
-    public_url = public_form.text_input("url")
-    public_button = public_form.form_submit_button()
+        # intersection of wishlists
+        inter_form =st.form("Intersect users wishlists")
+        inter_form.title("Intersect users wishlists")
+        u = inter_form.text_input("User 1")
+        v = inter_form.text_input("User 2")
+        inter_button = inter_form.form_submit_button()
 
-    if public_button:
-        public_short =add_public(public_url)
-        st.success("Created new public shortened url: "+public_short)
+        if inter_button:
+            inter_links = intersec_users(u,v)
+            if type(inter_links)!= NoneType:
+                st.dataframe(inter_links)
+            else:
+                st.warning("Intersection is empty")
 
-    # private
-    private_form =st.form("Shorten private url")
-    private_form.title("Shorten private url")
-    private_url = private_form.text_input("url")
-    private_button = private_form.form_submit_button()
+    else:
+        header = st.title(f"Bienvenido {st.session_state['user']}")
+    with st.expander("Generate new short URLs"):
+        # public
+        public_form =st.form("Shorten public url")
+        public_form.title("Shorten public url")
+        public_url = public_form.text_input("url")
+        public_button = public_form.form_submit_button()
 
-    if private_button:
-        private_short =add_private(private_url,current_user)
-        st.success("Created new private shortened url: "+private_short)
+        if public_button:
+            public_short =add_public(public_url)
+            st.success("Created new public shortened url: "+public_short)
 
+        # private
+        private_form =st.form("Shorten private url")
+        private_form.title("Shorten private url")
+        private_url = private_form.text_input("url")
+        private_button = private_form.form_submit_button()
+        cat_options = private_form.multiselect(
+     'Add this url to the following categories', get_cats(current_user))
+
+        if private_button:
+            private_short =add_private(private_url,current_user)
+            st.success("Created new private shortened url: "+private_short)
+            for cat in cat_options:
+                add_url_to_cat(current_user, cat, private_url)
+                st.success(f"Added to {cat}.")
+        
+        # my links tab
+    with st.expander("My links"):
+        new_cat_form =st.form("Add category")
+        new_cat = new_cat_form.text_input("New category")
+        new_cat_button = new_cat_form.form_submit_button()
+        if new_cat_button:
+            add_cat(current_user,new_cat)
+            st.success("Created new category")
+            #st.experimental_rerun()
+        
+        cat_selector = st.radio("Select category to display",['All']+get_cats(current_user))
+        cat_display_button = st.button("See category" )
+        if cat_display_button:
+            cat_links = get_links_in_cat(current_user,cat_selector)
+            if type(cat_links) != NoneType:
+                st.dataframe(cat_links,width= 700)
+            else:
+                st.warning("This category doesn't have links yet.")
     # wishlist
-    st.title('My Wishlist')
-    wish_table = st.dataframe(get_wishlist(current_user))
-    wishlist_form =st.form("Add url to wishlist")
-    wishlist_form.title("Add url to wishlist")
-    wishlist_url = wishlist_form.text_input("url")
-    wishlist_button = wishlist_form.form_submit_button()
+    with st.expander("Wishlist"):
+        st.title('My Wishlist')
+        df = get_wishlist(current_user)
+        if type(df)!= NoneType:
+            wish_table = st.dataframe(df)
+        wishlist_form =st.form("Add url to wishlist")
+        wishlist_form.title("Add url to wishlist")
+        wishlist_url = wishlist_form.text_input("url")
+        wishlist_button = wishlist_form.form_submit_button()
 
-    if wishlist_button :
-        private_short =add_to_wishlist(wishlist_url,current_user)
-        st.success("Created new private shortened url: "+private_short)
+        if wishlist_button :
+            private_short =add_to_wishlist(wishlist_url,current_user)
+            st.success("Created new private shortened url: "+private_short)
 
 
     st.button('Logout', on_click = logout)
