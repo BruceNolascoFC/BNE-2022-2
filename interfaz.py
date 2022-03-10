@@ -40,7 +40,7 @@ def expand(short,user = None):
 
 def add_to_wishlist(url,user):
     short = add_private(url,user)
-    r.append(user+":wishlist", short+"\n")
+    r.sadd(user+":wishlist", short+"\n")
     return short
 
 def get_wishlist(user):
@@ -51,6 +51,11 @@ def get_wishlist(user):
     wishlist = pd.DataFrame(wishlist_raw.split('\n')[:-1],columns= ["short"])
     wishlist['full'] = wishlist.short.map(lambda x: expand(x,user))
     return wishlist
+
+def intersec_users(u,v):
+    wishlist1 = r.get(u+":wishlist")
+    wishlist2 = r.get(v+":wishlist")
+    pass
 
 def login(user, password):
     if r.exists("user:"+user) == 0:
@@ -70,7 +75,19 @@ def signup(user, password):
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 
-st.title("Proyecto 1 REDIS")
+header = st.title("Proyecto 1 REDIS")
+
+expand_form = st.form("Deshorten URL")
+expand_form.title("Deshorten URL")
+url_to_expand = expand_form.text_input("URL")  
+expand_button = expand_form.form_submit_button()
+if expand_button:
+    large = expand(url_to_expand)
+    if large == None:
+        st.warning("Sorry, we couldn't find that URL")
+    else:
+        st.success(large)
+    
 
 if st.session_state['user'] == "auth_error":
     st.warning("Incorrect login credentials")
@@ -98,10 +115,10 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
 
 
 elif st.session_state['user'] == "root":
-    st.title(f"Bienvenido Administrador")
+    header = st.title(f"Bienvenido Administrador")
 else:
     current_user = st.session_state['user']
-    st.title(f"Bienvenido {st.session_state['user']}")
+    header = st.title(f"Bienvenido {st.session_state['user']}")
 
     # public
     public_form =st.form("Shorten public url")
@@ -125,7 +142,7 @@ else:
 
     # wishlist
     st.title('My Wishlist')
-    st.write(get_wishlist(current_user))
+    wish_table = st.write(get_wishlist(current_user))
     wishlist_form =st.form("Add url to wishlist")
     wishlist_form.title("Add url to wishlist")
     wishlist_url = wishlist_form.text_input("url")
@@ -134,3 +151,4 @@ else:
     if wishlist_button :
         private_short =add_to_wishlist(wishlist_url,current_user)
         st.success("Created new private shortened url: "+private_short)
+        wish_table = st.write(get_wishlist(current_user))
