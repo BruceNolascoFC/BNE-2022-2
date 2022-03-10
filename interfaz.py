@@ -1,3 +1,4 @@
+from re import A
 import streamlit as st
 import logging
 #import controller  as c
@@ -27,11 +28,16 @@ def add_private(url,user):
     r.set(user+':'+short,url)
     return short
 
-def expand(short,user = None):
+def expand(short,user = None,verbose = False):
+    #st.success(user)
     if user== None:
-        st.session_state['user']
+        user= st.session_state['user']
+    #st.success(user)
     if not (user== None or  user == "auth_error"):
+        
         if r.exists(user+":"+short) == 1:
+            if verbose:
+                st.success("Authenticated user for private url")
             return(r.get(user+":"+short).decode())
     if r.exists("public:"+short) == 1:
         return(r.get("public:"+short).decode())
@@ -40,15 +46,21 @@ def expand(short,user = None):
 
 def add_to_wishlist(url,user):
     short = add_private(url,user)
-    r.sadd(user+":wishlist", short+"\n")
+    r.sadd(user+":wishlist", short)
     return short
 
 def get_wishlist(user):
-    wishlist_raw = r.get(user+":wishlist")
-    if wishlist_raw == None:
+    wishlist_raw = list(r.smembers(user+":wishlist"))
+    
+    if len(wishlist_raw) == 0:
         return ""
-    wishlist_raw = wishlist_raw.decode()
-    wishlist = pd.DataFrame(wishlist_raw.split('\n')[:-1],columns= ["short"])
+    print(wishlist_raw)
+    #st.write(wishlist_raw)
+    #st.write([type(x) for x in wishlist_raw])
+    #wishlist_raw = wishlist_raw.decode()
+    #wishlist = pd.DataFrame(wishlist_raw.split('\n')[:-1],columns= ["short"])
+    wishlist_raw = map(lambda x: x.decode('ascii'), wishlist_raw)
+    wishlist = pd.DataFrame(wishlist_raw,columns= ["short"])
     wishlist['full'] = wishlist.short.map(lambda x: expand(x,user))
     return wishlist
 
@@ -68,6 +80,9 @@ def signup(user, password):
     r.set("user:"+user, password)
     return True
 
+def logout():
+    st.session_state['user'] = None
+    st.experimental_rerun()
 # Callbacks de interfaz
 
 
@@ -82,7 +97,7 @@ expand_form.title("Deshorten URL")
 url_to_expand = expand_form.text_input("URL")  
 expand_button = expand_form.form_submit_button()
 if expand_button:
-    large = expand(url_to_expand)
+    large = expand(url_to_expand,verbose = True)
     if large == None:
         st.warning("Sorry, we couldn't find that URL")
     else:
@@ -99,7 +114,7 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
     user = login_form.text_input("User")
     password = login_form.text_input("Password")    
     login_button = login_form.form_submit_button()
-    st.warning(str(r.get("user:"+user)))
+    #st.warning(str(r.get("user:"+user)))
     if login_button:
         st.session_state['user'] = user if login(user, password) else "auth_error"
         
@@ -116,6 +131,10 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
 
 elif st.session_state['user'] == "root":
     header = st.title(f"Bienvenido Administrador")
+
+
+
+    st.button('Logout', on_click = logout)
 else:
     current_user = st.session_state['user']
     header = st.title(f"Bienvenido {st.session_state['user']}")
@@ -142,7 +161,7 @@ else:
 
     # wishlist
     st.title('My Wishlist')
-    wish_table = st.write(get_wishlist(current_user))
+    wish_table = st.dataframe(get_wishlist(current_user))
     wishlist_form =st.form("Add url to wishlist")
     wishlist_form.title("Add url to wishlist")
     wishlist_url = wishlist_form.text_input("url")
@@ -151,4 +170,6 @@ else:
     if wishlist_button :
         private_short =add_to_wishlist(wishlist_url,current_user)
         st.success("Created new private shortened url: "+private_short)
-        wish_table = st.write(get_wishlist(current_user))
+
+
+    st.button('Logout', on_click = logout)
