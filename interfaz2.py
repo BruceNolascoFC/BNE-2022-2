@@ -78,7 +78,7 @@ def get_fav(user):
 def get_top_users(title):
     q = session.execute(f"SELECT user,score FROM libreria.review WHERE book = '{title}' ALLOW FILTERING")
     top_df = pd.DataFrame(q)
-    top_df = fav_df.sort_values('score',ascending = False).head(5)
+    top_df = top_df.sort_values('score',ascending = False).head(5)
     return top_df
 
 # Interfaz
