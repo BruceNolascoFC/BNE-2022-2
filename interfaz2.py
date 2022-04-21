@@ -54,7 +54,7 @@ def logout():
     st.session_state['user'] = None
 
 def submit_review(user, title, score):
-    session.execute("INSERT INTO libreria.review(user, book, score) VALUES ('{user}', '{title}', {score});")
+    session.execute(f"INSERT INTO libreria.review(user, book, score) VALUES ('{user}', '{title}', {score});")
     r = session.execute(f"SELECT * FROM libreria.book WHERE title = '{title}'").one()
     # If the book isn't yet in the library, tag it as  'General' Awaiting further classification
     if r == None:
