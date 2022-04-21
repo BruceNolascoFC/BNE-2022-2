@@ -129,7 +129,7 @@ else:
             fav_df = st.dataframe(get_fav(fuser))  
 
         # Top usuarios por libro
-        all_books = pd.DataFrame(session.execute(f"SELECT title FROM libreria.book")).unique()
+        all_books = pd.DataFrame(session.execute(f"SELECT title FROM libreria.book")).title.unique()
 
         top_user = st.form('Clients who loved the book')
         top_user.title("Clients who loved the book")
