@@ -81,6 +81,16 @@ def get_top_users(title):
     top_df = top_df.sort_values('score',ascending = False).head(5)
     return top_df
 
+def get_top_books(cat):
+    q = session.execute(f"SELECT title FROM libreria.book WHERE category = '{cat}' ALLOW FILTERING")
+    top_books_df = pd.DataFrame(q)
+    def _get_avg_score(title):
+        print(f"SELECT * FROM libreria.review WHERE book = '{title}';")
+        return pd.DataFrame(session.execute(f"SELECT * FROM libreria.review WHERE book = '{title}' ALLOW FILTERING;")).score.mean()
+    top_books_df['average_score'] = top_books_df.title.apply(_get_avg_score)
+    top_books_df = top_books_df.sort_values('average_score',ascending = False).head(5)
+    return top_books_df
+
 # Interfaz
 if 'user' not in st.session_state:
     st.session_state['user'] = None
@@ -100,7 +110,7 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
     login_button = login_form.form_submit_button()
     #st.warning(str(r.get("user:"+user)))
     if login_button:
-        st.session_state['user'] = user if login(user, password) else "auth_error"
+        st.session_state['user'] = user.strip() if login(user.strip(), password.strip()) else "auth_error"
         st.experimental_rerun()
     
     signup_form = st.form("SIGNUP")
@@ -112,7 +122,7 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
     signup_button = signup_form.form_submit_button()
 
     if signup_button:
-        st.session_state['user'] = new_user if signup(new_user, new_password,membership=new_membership,country=new_country) else "auth_error"
+        st.session_state['user'] = new_user if signup(new_user.strip(), new_password.strip(),membership=new_membership,country=new_country) else "auth_error"
         st.experimental_rerun()
 
 else:
@@ -138,6 +148,19 @@ else:
         if top_user_button :
             st.dataframe(get_top_users(top_user_book))
 
+        # Top libros por categoría
+        
+        top_books = st.form('Top books of category')
+        top_books.title('Top books of category')
+        top_books_cat = top_books.text_input('Category')
+        top_books_button = top_books.form_submit_button()
+        if top_books_button:
+            top_books_df = get_top_books(top_books_cat.strip())
+            if len(top_books_df) == 0:
+                st.warning(f"No books in {top_books_cat} category yet :(")
+            else:
+                st.dataframe(top_books_df)
+
     else:
         header = st.title(f"Bienvenido {st.session_state['user']}")
 
@@ -160,7 +183,7 @@ else:
     review_button = review_form.form_submit_button()
 
     if review_button:
-        submit_review(st.session_state['user'], book_title,book_score)
+        submit_review(st.session_state['user'], book_title.strip(),book_score)
         st.experimental_rerun()
     
     class_form = st.form("Classify book")
