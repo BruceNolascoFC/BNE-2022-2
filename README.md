@@ -7,3 +7,12 @@ Requiere una instancia de REDIS corriendo en el puerto 6379.
 Y streamlit:
 `streamlit run interfaz.py `
 
+-------
+Proyecto 2
+Requiere de los drivers de Cassandra instalados.
+Requiere que el certificado de conexión esté en el mismo directorio.
+
+`streamlit run interfaz2.py `
+
+En caso de error reinciar (_rerun_) la interfaz.
+
