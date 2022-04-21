@@ -56,16 +56,23 @@ def logout():
 def submit_review(user, title, score):
     session.execute("INSERT INTO libreria.review(user, book, score) VALUES ('{user}', '{title}', {score});")
     r = session.execute(f"SELECT * FROM libreria.book WHERE title = '{title}'").one()
+    # If the book isn't yet in the library, tag it as  'General' Awaiting further classification
     if r == None:
-        session.execute(f"INSERT INTO libreria.book(title, category) VALUES ('{title}', '');")
+        session.execute(f"INSERT INTO libreria.book(title, category) VALUES ('{title}', 'General');")
         return True
 def submit_class(book_title,book_cat):
     session.execute("INSERT INTO libreria.book(book, category) VALUES ('{book_title}', '{book_cat}');")
 
 def get_fav(user):
-    q = session.execute(f"SELECT * FROM libreria.review WHERE user = '{user}' ALLOW FILTERING")
+    q = session.execute(f"SELECT book,score FROM libreria.review WHERE user = '{user}' ALLOW FILTERING")
     fav_df = pd.DataFrame(q)
-    fav_df = fav_df.sort_values('score').head(5)
+    fav_df = fav_df.sort_values('score')
+
+    def _get_cat(title):
+        print(f"SELECT * FROM libreria.book WHERE title = '{title}';")
+        return session.execute(f"SELECT * FROM libreria.book WHERE title = '{title}';").one().category
+    fav_df['category'] = fav_df.book.apply(_get_cat)
+    fav_df = fav_df.loc[:,['category','score']].groupby('category').mean().sort_values('score',ascending = False)
     return fav_df
 
 # Interfaz
@@ -95,7 +102,7 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
     new_user = signup_form.text_input("New User")
     new_password = signup_form.text_input("New Password")  
     new_country= signup_form.text_input("Country")  
-    new_membership = signup_form.selectbox('Membership',['Free','Premium'])
+    new_membership = signup_form.selectbox('Membership',['Free','Básica','Premium'])
     signup_button = signup_form.form_submit_button()
 
     if signup_button:
@@ -108,11 +115,12 @@ else:
     if st.session_state['user'] == "root":
         header = st.title(f"Bienvenido Administrador")
         # Categorias favoritas del cliente
-        with st.expander('Favorite category of client'):
-            fuser = st.text_input('Username')
-            fav_button = st.button('Get favorite category')
-            if fav_button:
-                fav_df = st.dataframe(get_fav(fuser))  
+        fav_form = st.form('Favorite category of client')
+        fav_form.title("Get client's favorite category")
+        fuser = fav_form.text_input('Username')
+        fav_button = fav_form.form_submit_button()
+        if fav_button:
+            fav_df = st.dataframe(get_fav(fuser))  
     else:
         header = st.title(f"Bienvenido {st.session_state['user']}")
 
@@ -120,11 +128,16 @@ else:
     ratings = st.container()
     ratings.title('My reviews')
     reviews_df = pd.DataFrame(session.execute(f"SELECT book,score FROM libreria.review WHERE user = '{st.session_state['user']}' ALLOW FILTERING"))
-    ratings.dataframe(reviews_df)
-    my_books = reviews_df.book.unique()
+    if len(reviews_df) == 0:
+        ratings.warning('No reviews yet :(')
+        my_books = []
+    else:
+        ratings.dataframe(reviews_df)
+        my_books = reviews_df.book.unique()
 
     # Form for new review
     review_form = st.form("New review")
+    review_form.title('New review')
     book_title = review_form.text_input('Book title')
     book_score = review_form.slider('Score', 0, 10, 1)
     review_button = review_form.form_submit_button()
@@ -133,6 +146,7 @@ else:
         submit_review(st.session_state['user'], book_title,book_score)
     
     class_form = st.form("Classify book")
+    class_form.title('Classify book')
     cbook_title = class_form.selectbox('Book title',my_books)
     cbook_cat = class_form.text_input('Category')
     class_button = class_form.form_submit_button()
