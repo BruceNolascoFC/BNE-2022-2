@@ -15,7 +15,9 @@ NoneType = type(None)
 ssl_context = SSLContext(PROTOCOL_TLSv1_2 )
 ssl_context.load_verify_locations(r'./sf-class2-root.crt')
 ssl_context.verify_mode = CERT_REQUIRED
+# Acces credentials
 auth_provider = PlainTextAuthProvider(username='Administrator-at-166369086707', password='YIvRYT1tSEMGQizTVFYE/bBu1QXv6g/Z9Zmyq6ub7IQ=')
+# Specify consistency level
 profile = ExecutionProfile(
     consistency_level=cassandra.ConsistencyLevel.LOCAL_QUORUM
 )
@@ -23,7 +25,6 @@ cluster = Cluster(['cassandra.us-east-1.amazonaws.com'],
                   ssl_context=ssl_context, auth_provider=auth_provider, port=9142,
                  execution_profiles={EXEC_PROFILE_DEFAULT: profile})
 session = cluster.connect()
-#session.execute('consistency  local_quorum')
 session.execute('use libreria;')
 
 
@@ -51,6 +52,9 @@ def signup(user, password, membership= 'Free',country = 'Mexico'):
         return False
 
 def logout():
+    """
+    Terminates session overwriting the user param.
+    """
     st.session_state['user'] = None
 
 def submit_review(user, title, score):
@@ -61,9 +65,23 @@ def submit_review(user, title, score):
         session.execute(f"INSERT INTO libreria.book(title, category) VALUES ('{title}', 'General');")
         return True
 def submit_class(book_title,book_cat):
+    """Updates the classification of the book title.
+
+    Args:
+        book_title (str): 
+        book_cat (str): new category assigned.
+    """
     session.execute(f"INSERT INTO libreria.book(title, category) VALUES ('{book_title}', '{book_cat}');")
 
 def get_fav(user):
+    """Gets the categories of books reviewed by an user in descending average score.
+
+    Args:
+        user (str): Username
+
+    Returns:
+        pandas.GroupBy: A DataFrame representing the top catogories of the user. 
+    """
     q = session.execute(f"SELECT book,score FROM libreria.review WHERE user = '{user}' ALLOW FILTERING")
     fav_df = pd.DataFrame(q)
     fav_df = fav_df.sort_values('score')
@@ -76,6 +94,14 @@ def get_fav(user):
     return fav_df
 
 def get_top_users(title):
+    """Get the top users by score given to a particular book.
+
+    Args:
+        title (str): The book title
+
+    Returns:
+        pandas.DataFrame: Contains the top 5 users who gave the highest rating to the book. 
+    """
     q = session.execute(f"SELECT user,score FROM libreria.review WHERE book = '{title}' ALLOW FILTERING")
     top_df = pd.DataFrame(q)
     top_df = top_df.sort_values('score',ascending = False).head(5)
@@ -90,14 +116,14 @@ def get_top_books(cat):
     top_books_df['average_score'] = top_books_df.title.apply(_get_avg_score)
     top_books_df = top_books_df.sort_values('average_score',ascending = False).head(5)
     return top_books_df
-
+# -------------------------------
 # Interfaz
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 
 header = st.title("Proyecto 2 Cassandra")
-    
 
+# Sección de autenticación
 if st.session_state['user'] == "auth_error":
     st.warning("Incorrect login credentials")
 
@@ -186,6 +212,7 @@ else:
         submit_review(st.session_state['user'], book_title.strip(),book_score)
         st.experimental_rerun()
     
+    # Form for book classification
     class_form = st.form("Classify book")
     class_form.title('Classify book')
     cbook_title = class_form.selectbox('Book title',my_books)
