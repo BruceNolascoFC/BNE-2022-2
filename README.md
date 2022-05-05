@@ -16,3 +16,7 @@ Requiere que el certificado de conexión esté en el mismo directorio.
 
 En caso de error reinciar (_rerun_) la interfaz.
 
+--------
+Proyecto 3
+
+`sudo docker run -t --name pr3 -p 27017:27017 mongo bash`
