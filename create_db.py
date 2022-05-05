@@ -9,7 +9,7 @@ files = [join(r'data', f) for f in listdir(r'data') if isfile(join(r'data', f)) 
 db['stations'].create_index([("loc", pymongo.GEOSPHERE)])
 files = [join(r'data', f) for f in listdir(r'data') if isfile(join(r'data', f)) ]
 
-for f in files[1:2]:
+for f in files[0:2]:
     df = pd.read_csv(f)
     print(df.columns)
     trips = df[['start station id','end station id','tripduration','starttime']]
@@ -19,10 +19,10 @@ for f in files[1:2]:
     N = len(trips)
     i = 0
     
-    #for r in trips.iloc:
-    #    trip_insert(r)
-    #    i+= 1
-    #    print("\r","%.2f"%(100*i/N),end = '')
+    for r in trips.iloc:
+        trip_insert(r)
+        i+= 1
+        print("\r","%.2f"%(100*i/N),end = '')
     
     print(f"Trips from {f} done")
     stations = df.groupby(['start station id','start station name','start station latitude','start station longitude']).count().reset_index().iloc[:,:4]

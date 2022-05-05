@@ -1,5 +1,4 @@
 
-from numpy import result_type
 import streamlit as st
 from proyecto3 import *
 import pandas as pd
@@ -54,7 +53,7 @@ def logout():
 
 def get_user(user):
     u = users.find_one({'username':user})
-    
+
 # Interfaz
 if 'user' not in st.session_state:
     st.session_state['user'] = None
@@ -148,6 +147,7 @@ else:
         trip_place = trip_form.selectbox('Select starting place', u.places.keys())
         trip_time = trip_form.number_input("Duration of trip",value = 10)
         circular = trip_form.checkbox('Circular trip')
+        trip_hour=trip_form.time_input('Expected start time')
         trip_button = trip_form.form_submit_button()
 
         if trip_button:
@@ -156,6 +156,7 @@ else:
             st.success(f"The nearest station is in {nearest['name']}")
 
             nearest = station_by_id(nearest['id'])
-            st.dataframe(nearest.route(trip_time,circular))
+            st.dataframe(nearest.route(trip_time,circular,trip_hour))
 
     st.button('Logout', on_click = logout)
+    

@@ -89,7 +89,8 @@ class Station:
         }
         return self.dic
 
-    def route(self, time = 100,circular = False):
+    def route(self, time = 100,circular = False,trip_time= None):
+        print(trip_time.hour)
         otime = time*60
         m = 1
         time = otime
@@ -109,14 +110,15 @@ class Station:
                     trips.aggregate([
                         {'$match':{'$and':[
                     {'start':u},
-                    {'duration':{'$lt':time}}
-                    ]}},
+                    {'duration':{'$lt':time}},
+                    {'time':{'$lt':trip_time.hour+1, '$gt':trip_time.hour -1}}
+                        ]}},
                     {'$group':
                     {'_id':'$end', 'duration':{'$avg': '$duration'}}}]
                     )
                 ))
-            
-            print(q)
+            #print("n",list(n))
+            print("Q",q)
             for v,tr in n:
                 #print(v,tr)
                 if v in visited:
@@ -131,7 +133,8 @@ class Station:
                         q.append((v,tr))
 
         print(end_nodes)
-        def _name_by_id(idd):
+        def _st_by_id(idd):
+            print('idd',idd)
             s = stations.find_one({'id':idd})
             if s ==None:
                 return ""
@@ -143,7 +146,12 @@ class Station:
                 route.append(parents[en])
                 en = parents[en]
             route = route[:-1][::-1]
-            return list(map(_name_by_id,route))
+            if circular:
+                route += route[::-1][1:]
+            #print("R",route)
+            rdata = list(map(_st_by_id,route))
+            return rdata
+
         
         return pd.DataFrame({'total_duration':map(lambda x:x[1],end_nodes) ,
             'route': map(_recover_route,end_nodes)})
@@ -170,7 +178,7 @@ def trip_insert(t):
         'start': int(t.start),
         'end': int(t.end),
         'duration': float(t.duration),
-        'time': t.time
+        'time': t.time.hour
     }
     col = db['trips']
     col.insert_one(d)
