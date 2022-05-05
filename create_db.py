@@ -19,10 +19,10 @@ for f in files[1:2]:
     N = len(trips)
     i = 0
     
-    for r in trips.iloc:
-        trip_insert(r)
-        i+= 1
-        print("\r","%.2f"%(100*i/N),end = '')
+    #for r in trips.iloc:
+    #    trip_insert(r)
+    #    i+= 1
+    #    print("\r","%.2f"%(100*i/N),end = '')
     
     print(f"Trips from {f} done")
     stations = df.groupby(['start station id','start station name','start station latitude','start station longitude']).count().reset_index().iloc[:,:4]
@@ -33,6 +33,15 @@ for f in files[1:2]:
         station_row_insert(r)
         i+= 1
         print("\r","%.2f"%(100*i/N),end = '')
-
+    print(f"start stations from {f} done")
+    stations = df.groupby(['end station id','end station name','end station latitude','end station longitude']).count().reset_index().iloc[:,:4]
+    stations.columns = ['id','sname','lat','long']
+    N = len(stations)
+    i = 0
+    for r in stations.iloc:
+        station_row_insert(r)
+        i+= 1
+        print("\r","%.2f"%(100*i/N),end = '')
+    print(f"end stations from {f} done")
     print(f"File {f} done")
 db['stations'].create_index([("loc", pymongo.GEOSPHERE)])

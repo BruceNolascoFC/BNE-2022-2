@@ -5,6 +5,8 @@ from proyecto3 import *
 import pandas as pd
 import plotly.express as px
 import matplotlib.pyplot as plt
+
+st.set_page_config(page_title=None, page_icon=None, layout="wide", initial_sidebar_state="auto", menu_items=None)
 # Get collections
 users = db['users']
 stations = db['stations']
@@ -66,8 +68,8 @@ if st.session_state['user'] == "auth_error":
     st.warning("Incorrect login credentials")
 
 if st.session_state['user'] == None or  st.session_state['user'] == "auth_error":
-    
-    login_form = st.form("Login")
+    a,b = st.columns(2)
+    login_form = a.form("Login")
     login_form.header("LOGIN")
     user = login_form.text_input("User")
     password = login_form.text_input("Password")    
@@ -77,7 +79,7 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
         st.session_state['user'] = user if login(user, password) else "auth_error"
         st.experimental_rerun()
     
-    signup_form = st.form("SIGNUP")
+    signup_form = b.form("SIGNUP")
     signup_form.header("SIGN UP")
     new_user = signup_form.text_input("New User")
     new_password = signup_form.text_input("New Password")  
@@ -92,6 +94,7 @@ if st.session_state['user'] == None or  st.session_state['user'] == "auth_error"
     
 
 else:
+    
     current_user = st.session_state['user']
     if st.session_state['user'] == "root":
         header = st.title(f"Bienvenido Administrador")
@@ -101,8 +104,8 @@ else:
         header = st.title(f"Bienvenido {st.session_state['user']}")
     u = st.session_state['u']
     home_coords = u.places['home']
-
-    with st.expander("Search near stations"):
+    a,b = st.columns(2)
+    with a.expander("Search near stations"):
         near_form = st.form('Place')
         near_form.header("Select place to search from")
         near_place = near_form.selectbox('Select place', u.places.keys())
@@ -125,7 +128,7 @@ else:
                 st.warning("No near stations to the given location.")
 
 
-    with st.expander('Add place'):
+    with b.expander('Add place'):
         place_form = st.form("New place")
         place_form.header("Add new place")
         place_name = place_form.text_input('New place name')
@@ -144,6 +147,7 @@ else:
         trip_form.header('Recommend a trip')
         trip_place = trip_form.selectbox('Select starting place', u.places.keys())
         trip_time = trip_form.number_input("Duration of trip",value = 10)
+        circular = trip_form.checkbox('Circular trip')
         trip_button = trip_form.form_submit_button()
 
         if trip_button:
@@ -152,7 +156,6 @@ else:
             st.success(f"The nearest station is in {nearest['name']}")
 
             nearest = station_by_id(nearest['id'])
-
-            st.dataframe(nearest.open_route(trip_time))
+            st.dataframe(nearest.route(trip_time,circular))
 
     st.button('Logout', on_click = logout)

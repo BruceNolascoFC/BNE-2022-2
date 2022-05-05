@@ -89,8 +89,14 @@ class Station:
         }
         return self.dic
 
-    def open_route(self, time = 100):
-        time = time*60
+    def route(self, time = 100,circular = False):
+        otime = time*60
+        m = 1
+        time = otime
+        if circular:
+            time = time/2 
+            m = 2
+
         q = [(self.id,time)]
         visited = {self.id}
         parents = {self.id : None}
@@ -110,9 +116,9 @@ class Station:
                     )
                 ))
             
-            #print(list(n))
+            print(q)
             for v,tr in n:
-                print(v,tr)
+                #print(v,tr)
                 if v in visited:
                     continue
                 else:
@@ -120,23 +126,26 @@ class Station:
                     parents[v] = u
                     
                     if  tr <= 120:
-                        end_nodes.append(v)
+                        end_nodes.append((v,(otime-m*tr)/60))
                     else:
                         q.append((v,tr))
 
+        print(end_nodes)
         def _name_by_id(idd):
             s = stations.find_one({'id':idd})
             if s ==None:
                 return ""
             return s['name']
         def _recover_route(en):
-            route = []
+            en, _ = en
+            route = [en]
             while en != None:
                 route.append(parents[en])
                 en = parents[en]
+            route = route[:-1][::-1]
             return list(map(_name_by_id,route))
         
-        return pd.DataFrame({'destiny': end_nodes,
+        return pd.DataFrame({'total_duration':map(lambda x:x[1],end_nodes) ,
             'route': map(_recover_route,end_nodes)})
 
             
