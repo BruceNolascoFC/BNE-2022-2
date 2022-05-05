@@ -110,15 +110,21 @@ else:
 
         if near_button:
             near_df = pd.DataFrame(u.search_near(near_place))
-            near_df = near_df[near_df.distance <= 500]
-            st.dataframe(near_df[['distance','name']])
-            f = lambda x:x['loc']['coordinates']
-            cdf = pd.DataFrame(near_df.iloc[:,1:]['loc']).apply(f,axis = 1,result_type = 'expand')
-            cdf.columns = ['lon','lat'] 
-            cdf['name'] = near_df['name']
-            fig = px.scatter_mapbox(cdf, lat="lat", lon="lon", zoom=14,hover_name = 'name')
-            fig.update_layout(mapbox_style="open-street-map")
-            st.plotly_chart(fig)
+            try:
+            
+                near_df = near_df[near_df.distance <= 500]
+                st.dataframe(near_df[['distance','name']])
+                f = lambda x:x['loc']['coordinates']
+                cdf = pd.DataFrame(near_df.iloc[:,1:]['loc']).apply(f,axis = 1,result_type = 'expand')
+                cdf.columns = ['lon','lat'] 
+                cdf['name'] = near_df['name']
+                fig = px.scatter_mapbox(cdf, lat="lat", lon="lon", zoom=14,hover_name = 'name')
+                fig.update_layout(mapbox_style="open-street-map")
+                st.plotly_chart(fig)
+            except:
+                st.warning("No near stations to the given location.")
+
+
     with st.expander('Add place'):
         place_form = st.form("New place")
         place_form.header("Add new place")
@@ -132,5 +138,21 @@ else:
             u.update_places()
             st.session_state['u'] = u
             st.success("Place added")
+
+    with st.expander("Recommend a trip"):
+        trip_form = st.form('Recommend a trip')
+        trip_form.header('Recommend a trip')
+        trip_place = trip_form.selectbox('Select starting place', u.places.keys())
+        trip_time = trip_form.number_input("Duration of trip",value = 10)
+        trip_button = trip_form.form_submit_button()
+
+        if trip_button:
+            near_df = pd.DataFrame(u.search_near(trip_place))
+            nearest = near_df.iloc[0]
+            st.success(f"The nearest station is in {nearest['name']}")
+
+            nearest = station_by_id(nearest['id'])
+
+            st.dataframe(nearest.open_route(trip_time))
 
     st.button('Logout', on_click = logout)

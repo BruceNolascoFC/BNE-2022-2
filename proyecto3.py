@@ -2,13 +2,13 @@ import pymongo
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from mpl_toolkits.basemap import Basemap
+
 # Establish local connection
 client = pymongo.MongoClient('localhost', 27017)
 db = client['bikes']
 users= db['users']
 stations = db['stations']
-
+trips = db['trips']
 class User:
     def __init__(self,username,password,home_lat = 0, home_long = 0,places = None):
         self.username = username
@@ -88,6 +88,65 @@ class Station:
             'longitude':self.long
         }
         return self.dic
+
+    def open_route(self, time = 100):
+        time = time*60
+        q = [(self.id,time)]
+        visited = {self.id}
+        parents = {self.id : None}
+        end_nodes = []
+        while  len(q)>0:
+            u,time = q.pop(0)
+            
+            n = map( lambda x: (x['_id'], time - x['duration']),
+                list(
+                    trips.aggregate([
+                        {'$match':{'$and':[
+                    {'start':u},
+                    {'duration':{'$lt':time}}
+                    ]}},
+                    {'$group':
+                    {'_id':'$end', 'duration':{'$avg': '$duration'}}}]
+                    )
+                ))
+            
+            #print(list(n))
+            for v,tr in n:
+                print(v,tr)
+                if v in visited:
+                    continue
+                else:
+                    visited.add(v)
+                    parents[v] = u
+                    
+                    if  tr <= 120:
+                        end_nodes.append(v)
+                    else:
+                        q.append((v,tr))
+
+        def _name_by_id(idd):
+            s = stations.find_one({'id':idd})
+            if s ==None:
+                return ""
+            return s['name']
+        def _recover_route(en):
+            route = []
+            while en != None:
+                route.append(parents[en])
+                en = parents[en]
+            return list(map(_name_by_id,route))
+        
+        return pd.DataFrame({'destiny': end_nodes,
+            'route': map(_recover_route,end_nodes)})
+
+            
+
+
+            
+
+def station_by_id(id):
+    doc = stations.find_one({'id':int(id)})
+    return station_from_doc(doc)
 
 def station_from_doc(doc):
     return Station(doc['id'],doc['name'],doc['loc']['coordinates'][0],doc['loc']['coordinates'][1])
