@@ -1,13 +1,19 @@
 import pymongo
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
+# Establish local connection
 client = pymongo.MongoClient('localhost', 27017)
 db = client['bikes']
-users_collection = db['users']
+users= db['users']
+stations = db['stations']
 
 class User:
     def __init__(self,username,password,home_lat = 0, home_long = 0,places = None):
         self.username = username
         self.password = password
-        self.places = {'home':[home_lat,home_long]}
+        self.places = {'home':[home_long,home_lat]}
         if places != None:
             self.places = places
     
@@ -26,6 +32,29 @@ class User:
     def insert(self,db = db):
         col = db['users']
         col.insert_one(self.as_doc())
+    
+    def update_places(self):
+        col = db['users']
+        col.update_one({'username':self.username},{"$set":{
+            'places':self.as_doc()['places']
+        }})
+
+    def search_near(self,place = 'home',maxd = 1500):
+        p = self.places[place]
+        lat = p[1]
+        long = p[0]
+        return list(stations.aggregate( [
+        {
+            '$geoNear': {
+                'near': { 'type': "Point",  'coordinates': [long, lat] },
+                'spherical': 'true',
+                'query': { },
+                #'maxDistance':maxd,
+                'distanceField': "distance"
+            }
+        }
+        ] ))
+
 
 def user_from_doc(doc):
     places = doc['places']
@@ -41,9 +70,9 @@ class Station:
     def as_doc(self):
         self.doc = {
             'id':int(self.id),
-            'name':self.name,
+            'name':str(self.name),
             'loc':{
-                    'type':'Point','coordinates':[self.lat,self.long]
+                    'type':'Point','coordinates':[float(self.long),float(self.lat)]
                 }
         }
         return self.doc
@@ -51,14 +80,22 @@ class Station:
     def insert(self,db = db):
         col = db['stations']
         col.insert_one(self.as_doc())
+    
+    def as_dic(self):
+        self.dic = {
+            'name':self.name,
+            'latitude':self.lat,
+            'longitude':self.long
+        }
+        return self.dic
 
 def station_from_doc(doc):
     return Station(doc['id'],doc['name'],doc['loc']['coordinates'][0],doc['loc']['coordinates'][1])
 
 def station_row_insert(r):
     col = db['stations']
-    if col.find_one({'name': r.name}) == None:     
-        Station(r.id,r.name,r.lat,r.long).insert()
+    if col.find_one({'name': str(r.sname)}) == None:     
+        Station(r.id,r.sname,r.lat,r.long).insert()
 
 def trip_insert(t):
     d ={
@@ -69,6 +106,10 @@ def trip_insert(t):
     }
     col = db['trips']
     col.insert_one(d)
+
+
+
+
 
 
 
